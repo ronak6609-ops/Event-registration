@@ -26,7 +26,6 @@ mongoose.connect(process.env.MONGO_URI)
   console.log("❌ MongoDB Error:", err);
 });
 
-
 /* =========================
    Registration Schema
 ========================= */
@@ -54,7 +53,6 @@ const registrationSchema = new mongoose.Schema({
 
 const Registration = mongoose.model("Registration", registrationSchema);
 
-
 /* =========================
    OTP Schema
 ========================= */
@@ -67,26 +65,36 @@ const otpSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
-    expires: 300
+    expires: 300   // OTP expires in 5 minutes
   }
 
 });
 
 const OTP = mongoose.model("OTP", otpSchema);
 
-
 /* =========================
-   Mail Setup
+   Mail Setup (FIXED SMTP)
 ========================= */
 
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
   }
 });
 
+/* Check mail server connection */
+
+transporter.verify((error, success) => {
+  if (error) {
+    console.log("❌ Email server error:", error);
+  } else {
+    console.log("✅ Email server ready");
+  }
+});
 
 /* =========================
    OTP Generator
@@ -96,7 +104,6 @@ function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-
 /* =========================
    Routes
 ========================= */
@@ -104,7 +111,6 @@ function generateOTP() {
 app.get("/", (req, res) => {
   res.send("API Running 🚀");
 });
-
 
 /* ---------- SEND OTP ---------- */
 
@@ -114,25 +120,32 @@ app.post("/send-otp", async (req, res) => {
 
     const { email } = req.body;
 
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required"
+      });
+    }
+
     const otp = generateOTP();
 
     await OTP.create({ email, otp });
 
     await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+      from: `"Event Team" <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: "Your OTP Code",
-      text: `Your verification OTP is ${otp}`
+      subject: "Event Registration OTP",
+      text: `Your verification OTP is ${otp}. It will expire in 5 minutes.`
     });
 
     res.json({
       success: true,
-      message: "OTP sent"
+      message: "OTP sent successfully"
     });
 
   } catch (error) {
 
-    console.log(error);
+    console.log("❌ OTP Error:", error);
 
     res.status(500).json({
       success: false,
@@ -142,7 +155,6 @@ app.post("/send-otp", async (req, res) => {
   }
 
 });
-
 
 /* ---------- VERIFY OTP ---------- */
 
@@ -170,6 +182,8 @@ app.post("/verify-otp", async (req, res) => {
 
   } catch (err) {
 
+    console.log("❌ Verify OTP Error:", err);
+
     res.status(500).json({
       success: false,
       message: "Server error"
@@ -178,7 +192,6 @@ app.post("/verify-otp", async (req, res) => {
   }
 
 });
-
 
 /* ---------- REGISTER USER ---------- */
 
@@ -197,7 +210,7 @@ app.post("/api/register", async (req, res) => {
 
   } catch (error) {
 
-    console.error(error);
+    console.error("❌ Registration Error:", error);
 
     res.status(500).json({
       error: "Failed to save registration"
@@ -206,7 +219,6 @@ app.post("/api/register", async (req, res) => {
   }
 
 });
-
 
 /* =========================
    Start Server
