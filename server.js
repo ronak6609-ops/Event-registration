@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -13,14 +15,12 @@ app.use(cors());
 app.use(express.json());
 
 /* =========================
-   MongoDB Atlas Connection
+   MongoDB Connection
 ========================= */
 
-mongoose.connect(
-"mongodb+srv://ronaksolanki18:Ronak123@eventregistration.ixfabme.mongodb.net/eventsDB?retryWrites=true&w=majority&appName=EVENTREGISTRATION"
-)
+mongoose.connect(process.env.MONGO_URI)
 .then(() => {
-  console.log("✅ MongoDB Atlas Connected");
+  console.log("✅ MongoDB Connected");
 })
 .catch((err) => {
   console.log("❌ MongoDB Error:", err);
@@ -67,7 +67,7 @@ const otpSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
-    expires: 300   // OTP expires in 5 minutes
+    expires: 300
   }
 
 });
@@ -82,8 +82,8 @@ const OTP = mongoose.model("OTP", otpSchema);
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: "ronak6609@gmail.com",
-    pass: "hhjk ahpb vjdr bpxh"
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
   }
 });
 
@@ -119,7 +119,7 @@ app.post("/send-otp", async (req, res) => {
     await OTP.create({ email, otp });
 
     await transporter.sendMail({
-      from: "yourprojectemail@gmail.com",
+      from: process.env.EMAIL_USER,
       to: email,
       subject: "Your OTP Code",
       text: `Your verification OTP is ${otp}`
@@ -148,23 +148,34 @@ app.post("/send-otp", async (req, res) => {
 
 app.post("/verify-otp", async (req, res) => {
 
-  const { email, otp } = req.body;
+  try {
 
-  const record = await OTP.findOne({ email, otp });
+    const { email, otp } = req.body;
 
-  if (!record) {
+    const record = await OTP.findOne({ email, otp });
 
-    return res.json({
+    if (!record) {
+
+      return res.json({
+        success: false,
+        message: "Invalid or expired OTP"
+      });
+
+    }
+
+    res.json({
+      success: true,
+      message: "OTP verified"
+    });
+
+  } catch (err) {
+
+    res.status(500).json({
       success: false,
-      message: "Invalid or expired OTP"
+      message: "Server error"
     });
 
   }
-
-  res.json({
-    success: true,
-    message: "OTP verified"
-  });
 
 });
 
@@ -201,8 +212,8 @@ app.post("/api/register", async (req, res) => {
    Start Server
 ========================= */
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
