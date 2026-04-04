@@ -3,7 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const nodemailer = require("nodemailer");
+const brevo = require("@getbrevo/brevo");
 
 const app = express();
 
@@ -73,28 +73,11 @@ const otpSchema = new mongoose.Schema({
 const OTP = mongoose.model("OTP", otpSchema);
 
 /* =========================
-   Mail Setup (FIXED SMTP)
+   Brevo Mail Setup
 ========================= */
 
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
-
-/* Check mail server connection */
-
-transporter.verify((error, success) => {
-  if (error) {
-    console.log("❌ Email server error:", error);
-  } else {
-    console.log("✅ Email server ready");
-  }
-});
+const brevoClient = new brevo.TransactionalEmailsApi();
+brevoClient.authentications["apiKey"].apiKey = process.env.BREVO_API_KEY;
 
 /* =========================
    OTP Generator
@@ -131,12 +114,14 @@ app.post("/send-otp", async (req, res) => {
 
     await OTP.create({ email, otp });
 
-    await transporter.sendMail({
-      from: `"Event Team" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: "Event Registration OTP",
-      text: `Your verification OTP is ${otp}. It will expire in 5 minutes.`
-    });
+    const sendSmtpEmail = new brevo.SendSmtpEmail();
+
+    sendSmtpEmail.subject = "Event Registration OTP";
+    sendSmtpEmail.textContent = `Your verification OTP is ${otp}. It will expire in 5 minutes.`;
+    sendSmtpEmail.sender = { name: "Event Team", email: "ronak6609@gmail.com" };
+    sendSmtpEmail.to = [{ email: email }];
+
+    await brevoClient.sendTransacEmail(sendSmtpEmail);
 
     res.json({
       success: true,
