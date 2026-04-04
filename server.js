@@ -3,7 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const brevo = require("@getbrevo/brevo");
+const axios = require("axios");
 
 const app = express();
 
@@ -73,18 +73,33 @@ const otpSchema = new mongoose.Schema({
 const OTP = mongoose.model("OTP", otpSchema);
 
 /* =========================
-   Brevo Mail Setup
-========================= */
-
-const brevoClient = new brevo.TransactionalEmailsApi();
-brevoClient.authentications["apiKey"].apiKey = process.env.BREVO_API_KEY;
-
-/* =========================
    OTP Generator
 ========================= */
 
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+/* =========================
+   Send Email via Brevo API
+========================= */
+
+async function sendEmail(to, otp) {
+  await axios.post(
+    "https://api.brevo.com/v3/smtp/email",
+    {
+      sender: { name: "Event Team", email: "ronak6609@gmail.com" },
+      to: [{ email: to }],
+      subject: "Event Registration OTP",
+      textContent: `Your verification OTP is ${otp}. It will expire in 5 minutes.`
+    },
+    {
+      headers: {
+        "api-key": process.env.BREVO_API_KEY,
+        "Content-Type": "application/json"
+      }
+    }
+  );
 }
 
 /* =========================
@@ -114,14 +129,7 @@ app.post("/send-otp", async (req, res) => {
 
     await OTP.create({ email, otp });
 
-    const sendSmtpEmail = new brevo.SendSmtpEmail();
-
-    sendSmtpEmail.subject = "Event Registration OTP";
-    sendSmtpEmail.textContent = `Your verification OTP is ${otp}. It will expire in 5 minutes.`;
-    sendSmtpEmail.sender = { name: "Event Team", email: "ronak6609@gmail.com" };
-    sendSmtpEmail.to = [{ email: email }];
-
-    await brevoClient.sendTransacEmail(sendSmtpEmail);
+    await sendEmail(email, otp);
 
     res.json({
       success: true,
@@ -130,7 +138,7 @@ app.post("/send-otp", async (req, res) => {
 
   } catch (error) {
 
-    console.log("❌ OTP Error:", error);
+    console.log("❌ OTP Error:", error.response?.data || error.message);
 
     res.status(500).json({
       success: false,
@@ -213,4 +221,4 @@ const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-});
+})
