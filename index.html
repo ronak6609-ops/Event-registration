@@ -176,6 +176,44 @@
   .api-dot.error{background:#ff6584}
 
   ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+  /* ── My Registrations Panel ── */
+  .my-reg-section{padding:0 32px 72px;max-width:960px;margin:0 auto}
+  .my-reg-card{background:var(--card);border:1px solid var(--border);border-radius:24px;padding:36px;position:relative;overflow:hidden}
+  .my-reg-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#43e97b,#6c63ff,#ff6584)}
+  .my-reg-title{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:10px}
+  .my-reg-sub{font-size:14px;color:var(--muted);margin-bottom:28px}
+  .my-reg-search-row{display:flex;gap:10px;align-items:flex-end;margin-bottom:28px}
+  .my-reg-search-row input{flex:1}
+  .lookup-btn{padding:13px 22px;border-radius:12px;background:var(--accent);border:none;color:#fff;font-size:14px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s;white-space:nowrap;flex-shrink:0}
+  .lookup-btn:hover:not(:disabled){background:#5a52e0;transform:translateY(-1px)}
+  .lookup-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+
+  .reg-results{display:none}
+  .reg-results.visible{display:block}
+
+  .reg-summary-bar{display:flex;align-items:center;gap:16px;background:rgba(108,99,255,0.08);border:1px solid rgba(108,99,255,0.2);border-radius:14px;padding:16px 20px;margin-bottom:24px;flex-wrap:wrap}
+  .reg-summary-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#6c63ff,#ff6584);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;font-family:'Syne',sans-serif;color:#fff;flex-shrink:0}
+  .reg-summary-info{flex:1}
+  .reg-summary-name{font-family:'Syne',sans-serif;font-size:16px;font-weight:700}
+  .reg-summary-email{font-size:12px;color:var(--muted);margin-top:2px}
+  .reg-count-badge{background:var(--accent);color:#fff;border-radius:100px;padding:6px 16px;font-size:13px;font-weight:600;font-family:'Syne',sans-serif;white-space:nowrap}
+
+  .reg-list{display:flex;flex-direction:column;gap:12px}
+  .reg-item{display:flex;align-items:center;gap:14px;background:var(--input-bg);border:1px solid var(--border);border-radius:14px;padding:14px 18px;transition:border-color .2s}
+  .reg-item:hover{border-color:rgba(108,99,255,0.35)}
+  .reg-item-emoji{font-size:28px;width:44px;text-align:center;flex-shrink:0}
+  .reg-item-info{flex:1}
+  .reg-item-name{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:3px}
+  .reg-item-meta{font-size:12px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
+  .reg-item-tag{display:inline-flex;align-items:center;font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:3px 10px;border-radius:100px;font-weight:500;flex-shrink:0}
+  .reg-item-num{font-size:12px;color:var(--muted);font-family:'Syne',sans-serif;font-weight:600;flex-shrink:0}
+
+  .reg-empty{text-align:center;padding:36px 20px;color:var(--muted)}
+  .reg-empty .reg-empty-icon{font-size:40px;margin-bottom:12px}
+  .reg-empty p{font-size:14px;line-height:1.6}
+  .reg-loading{text-align:center;padding:32px;color:var(--muted);font-size:14px}
+  .reg-err{text-align:center;padding:24px;color:#ff9ab0;font-size:14px;background:rgba(255,101,132,0.06);border:1px solid rgba(255,101,132,0.2);border-radius:12px}
 </style>
 </head>
 <body>
@@ -328,6 +366,23 @@
         <span>→</span>
       </button>
       <p class="privacy-note">Your data is stored securely in<br>MongoDB Atlas. Email verified before saving.</p>
+    </div>
+  </div>
+</div>
+
+<!-- MY REGISTRATIONS SECTION -->
+<div class="my-reg-section">
+  <div class="my-reg-card">
+    <div class="my-reg-title">🎟️ My Registrations</div>
+    <div class="my-reg-sub">Enter your full name to see all events you've registered for</div>
+
+    <div class="my-reg-search-row">
+      <input type="text" id="lookup-name" placeholder="e.g. Aarav Shah" oninput="onLookupInput()" onkeydown="if(event.key==='Enter')lookupRegistrations()" autocomplete="off">
+      <button class="lookup-btn" id="lookup-btn" onclick="lookupRegistrations()" disabled>Look Up →</button>
+    </div>
+
+    <div class="reg-results" id="reg-results">
+      <!-- filled by JS -->
     </div>
   </div>
 </div>
@@ -796,6 +851,103 @@
     document.getElementById('sl4').className   = 'step-line';
     document.getElementById('s5').className   = 'step-circle pending';
     document.getElementById('s5').textContent  = '5';
+  }
+
+  // ─── My Registrations ────────────────────────
+
+  // Map event id → emoji (for display)
+  const eventEmojiMap = {};
+  events.forEach(e => { eventEmojiMap[e.id] = e.emoji; eventEmojiMap[e.name] = e.emoji; });
+
+  function getEmojiForEvent(name) {
+    const match = events.find(e => e.name === name);
+    return match ? match.emoji : '📌';
+  }
+  function getTagForEvent(name) {
+    const match = events.find(e => e.name === name);
+    if (!match) return { label: 'Event', cls: 'tag-tech' };
+    return { label: match.tag, cls: match.tagClass };
+  }
+
+  function onLookupInput() {
+    const val = document.getElementById('lookup-name').value.trim();
+    document.getElementById('lookup-btn').disabled = val.length < 2;
+    document.getElementById('reg-results').classList.remove('visible');
+  }
+
+  async function lookupRegistrations() {
+    const name = document.getElementById('lookup-name').value.trim();
+    if (!name) return;
+
+    const btn = document.getElementById('lookup-btn');
+    const resultsDiv = document.getElementById('reg-results');
+
+    btn.disabled = true;
+    btn.textContent = 'Looking up…';
+    resultsDiv.innerHTML = '<div class="reg-loading">⏳ Fetching your registrations…</div>';
+    resultsDiv.classList.add('visible');
+
+    try {
+      const res = await fetch(API_BASE + '/api/registrations?name=' + encodeURIComponent(name));
+
+      // Check if response is JSON before parsing
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned HTTP ${res.status} — make sure you redeployed server.js with the new /api/registrations route.`);
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'Server error');
+
+      const regs = Array.isArray(data) ? data : (data.registrations || []);
+
+      if (regs.length === 0) {
+        resultsDiv.innerHTML = `
+          <div class="reg-empty">
+            <div class="reg-empty-icon">🔍</div>
+            <p>No registrations found for <strong style="color:var(--text)">${name}</strong>.<br>
+            Make sure you entered the same name used during registration.</p>
+          </div>`;
+      } else {
+        const initials = name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2) || '?';
+
+        const itemsHTML = regs.map((r, idx) => {
+          const emoji = getEmojiForEvent(r.eventName);
+          const tag   = getTagForEvent(r.eventName);
+          return `
+          <div class="reg-item">
+            <div class="reg-item-emoji">${emoji}</div>
+            <div class="reg-item-info">
+              <div class="reg-item-name">${r.eventName || '—'}</div>
+              <div class="reg-item-meta">
+                <span>📅 ${r.eventDate || '—'}</span>
+                <span>📍 ${r.eventVenue || '—'}</span>
+                ${r.department ? `<span>🏛️ ${r.department}</span>` : ''}
+              </div>
+            </div>
+            <div class="reg-item-tag ${tag.cls}">${tag.label}</div>
+            <div class="reg-item-num">#${idx + 1}</div>
+          </div>`;
+        }).join('');
+
+        resultsDiv.innerHTML = `
+          <div class="reg-summary-bar">
+            <div class="reg-summary-avatar">${initials}</div>
+            <div class="reg-summary-info">
+              <div class="reg-summary-name">${name}</div>
+              <div class="reg-summary-email">${regs[0].email || ''}</div>
+            </div>
+            <div class="reg-count-badge">🎟️ ${regs.length} Event${regs.length !== 1 ? 's' : ''} Registered</div>
+          </div>
+          <div class="reg-list">${itemsHTML}</div>`;
+      }
+    } catch (err) {
+      resultsDiv.innerHTML = `<div class="reg-err">❌ ${err.message}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Look Up →';
+    }
   }
 
   renderEvents('all');
