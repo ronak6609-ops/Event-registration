@@ -213,6 +213,34 @@ app.post("/api/register", async (req, res) => {
 
 });
 
+/* ---------- GET REGISTRATIONS BY NAME ---------- */
+
+app.get("/api/registrations", async (req, res) => {
+
+  try {
+
+    const { name } = req.query;
+
+    if (!name) {
+      return res.status(400).json({ error: "Name is required" });
+    }
+
+    const regs = await Registration.find({
+      fullName: { $regex: new RegExp(name, "i") }  // case-insensitive match
+    });
+
+    res.json(regs);
+
+  } catch (error) {
+
+    console.error("❌ Lookup Error:", error);
+
+    res.status(500).json({ error: "Failed to fetch registrations" });
+
+  }
+
+});
+
 /* =========================
    Start Server
 ========================= */
@@ -221,4 +249,4 @@ const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-})
+});
